@@ -1,1 +1,235 @@
-1
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chuyển đổi số Phường Lào Cai - Ý tưởng sáng tạo</title>
+    <meta
+      name="description"
+      content="Nơi chia sẻ và đóng góp các ý tưởng chuyển đổi số cho Phường Lào Cai. Hãy cùng nhau xây dựng một cộng đồng thông minh."
+    />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/style.css" />
+
+    <!-- Font Awesome -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics-compat.js"></script>
+  </head>
+  <body>
+    <div class="container">
+      <div style="position: absolute; top: 2rem; right: 2rem; z-index: 100;">
+          <a href="admin1.html" class="glass-panel" style="padding: 0.6rem 1.2rem; text-decoration: none; color: var(--text); font-weight: 600; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; border-radius: 10px;">
+              <i class="fas fa-user-shield" style="color: var(--primary);"></i> QUẢN TRỊ
+          </a>
+      </div>
+
+      <header>
+
+        <h1>CHUYỂN ĐỔI SỐ</h1>
+        <p class="subtitle">
+          PHƯỜNG LÀO CAI - Nâng tầm cuộc sống bằng công nghệ
+        </p>
+      </header>
+
+      <nav class="tabs">
+        <button class="tab-btn active" data-tab="feed">
+          <i class="fas fa-lightbulb"></i> Ý tưởng hay
+        </button>
+        <button class="tab-btn" data-tab="submit">
+          <i class="fas fa-plus-circle"></i> Gửi ý tưởng
+        </button>
+      </nav>
+
+
+      <!-- Main Feed Section -->
+      <section id="feed" class="tab-content active">
+        <div
+          class="feed-controls"
+          style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;"
+        >
+          <div style="flex: 1; min-width: 300px; position: relative;">
+            <i class="fas fa-search" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+            <input 
+              type="text" 
+              id="search-input" 
+              class="glass-panel" 
+              placeholder="Tìm kiếm ý tưởng theo tên..." 
+              style="padding: 0.75rem 1rem 0.75rem 3rem; border-radius: 12px; width: 100%; border-color: var(--glass-border);"
+            >
+          </div>
+          
+          <div style="display: flex; gap: 1rem;">
+            <select
+              id="category-filter"
+              class="glass-panel"
+              style="padding: 0.75rem 1rem; border-radius: 12px; font-family: inherit; color: var(--text);"
+            >
+              <option value="all">Tất cả lĩnh vực</option>
+            </select>
+            <select
+              id="sort-order"
+              class="glass-panel"
+              style="padding: 0.75rem 1rem; border-radius: 12px; font-family: inherit; color: var(--text);"
+            >
+              <option value="likes">Nhiều lượt thích nhất</option>
+              <option value="newest">Mới nhất</option>
+            </select>
+          </div>
+        </div>
+        <div class="ideas-grid" id="ideas-container">
+          <!-- Ideas will be loaded here -->
+          <div
+            class="loading-spinner"
+            style="text-align: center; grid-column: 1/-1"
+          >
+            <i class="fas fa-circle-notch fa-spin fa-2x"></i>
+            <p>Đang tải ý tưởng...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Submission Form Section -->
+      <section id="submit" class="tab-content">
+        <div
+          class="glass-panel"
+          style="padding: 2.5rem; max-width: 800px; margin: 0 auto"
+        >
+          <h2
+            style="
+              margin-bottom: 2rem;
+              display: flex;
+              align-items: center;
+              gap: 0.5rem;
+            "
+          >
+            <i class="fas fa-pen-nib" style="color: var(--primary)"></i>
+            ĐỀ XUẤT Ý TƯỞNG CỦA BẠN
+          </h2>
+          <form id="idea-form">
+            <div class="form-group">
+              <label>Danh mục ý tưởng</label>
+              <select id="category" required>
+                <!-- Categories will be loaded from DB -->
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Tên ý tưởng</label>
+              <input
+                type="text"
+                id="title"
+                placeholder="Ví dụ: App phản ánh kiến nghị người dân"
+                required
+              />
+            </div>
+
+            <div class="form-group">
+              <label>Mô tả ngắn gọn ý tưởng</label>
+              <textarea
+                id="description"
+                rows="4"
+                placeholder="Mô tả tóm tắt về ý tưởng của bạn..."
+                required
+              ></textarea>
+            </div>
+
+            <div
+              style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem"
+            >
+              <div class="form-group">
+                <label>Họ và tên</label>
+                <input
+                  type="text"
+                  id="fullname"
+                  placeholder="Họ tên của bạn"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label>Số điện thoại</label>
+                <input
+                  type="tel"
+                  id="phone"
+                  placeholder="Để chúng tôi liên hệ"
+                  required
+                />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Địa chỉ</label>
+              <input
+                type="text"
+                id="address"
+                placeholder="Tổ dân phố, phố..."
+                required
+              />
+            </div>
+
+            <div class="form-group">
+              <label
+                >Ảnh mô tả (Tối đa 3 ảnh, tự động giảm dung lượng < 20kb)</label
+              >
+              <input
+                type="file"
+                id="images"
+                accept="image/*"
+                multiple
+                max="3"
+              />
+              <div
+                id="image-preview"
+                style="display: flex; gap: 10px; margin-top: 10px"
+              ></div>
+            </div>
+
+            <div class="form-group">
+              <label>File mô tả chi tiết (PDF/Word, < 20kb)</label>
+              <input type="file" id="detail-file" accept=".pdf,.doc,.docx" />
+              <small style="color: var(--text-muted)"
+                >Dung lượng file phải nhỏ hơn 20KB</small
+              >
+            </div>
+
+            <div class="form-group">
+              <label>Link Youtube / Tiktok (Nếu có)</label>
+              <input
+                type="url"
+                id="social-link"
+                placeholder="https://youtube.com/watch?v=..."
+              />
+            </div>
+
+            <button
+              type="submit"
+              class="btn btn-primary"
+              style="width: 100%; margin-top: 1rem"
+            >
+              <i class="fas fa-paper-plane"></i> GỬI Ý TƯỞNG NGAY
+            </button>
+          </form>
+        </div>
+      </section>
+
+      </section>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="js/app.js" type="module"></script>
+  </body>
+</html>

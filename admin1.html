@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ thống Quản trị - Phường Lào Cai</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header Section -->
+        <header>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3rem;">
+                <a href="index.html" class="glass-panel" style="padding: 0.5rem 1rem; text-decoration: none; color: var(--text-muted); font-size: 0.9rem; border-radius: 8px;">
+                    <i class="fas fa-home"></i> Trang chủ
+                </a>
+                <h1 style="font-size: 2.2rem;">HỆ THỐNG QUẢN TRỊ</h1>
+                <div style="width: 100px;"></div> <!-- Spacer -->
+            </div>
+        </header>
+
+        <section id="admin-container">
+            <!-- Login UI (Visible by default) -->
+            <div id="admin-login-ui" class="glass-panel admin-login" style="max-width: 450px; margin: 2rem auto; padding: 3rem;">
+                <div style="text-align: center; margin-bottom: 2.5rem;">
+                    <i class="fas fa-user-shield fa-3x" style="color: var(--primary); margin-bottom: 1rem;"></i>
+                    <h2 style="font-weight: 700;">Đăng nhập Admin</h2>
+                    <p style="color: var(--text-muted); font-size: 0.9rem;">Vui lòng nhập tài khoản quản trị viên</p>
+                </div>
+                
+                <div class="form-group">
+                    <label>Tên đăng nhập</label>
+                    <input type="text" id="admin-user" placeholder="Nhập tên đăng nhập...">
+                </div>
+                <div class="form-group">
+                    <label>Mật khẩu</label>
+                    <input type="password" id="admin-pass" placeholder="••••••••">
+                </div>
+                <button id="btn-login" class="btn btn-primary" style="width: 100%; height: 50px; font-size: 1.1rem; margin-top: 1rem;">
+                    Xác nhận đăng nhập
+                </button>
+            </div>
+
+            <!-- Dashboard UI (Hidden by default) -->
+            <div id="admin-dashboard" class="hidden">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3rem; padding: 1.5rem;" class="glass-panel">
+                    <div>
+                        <h2 style="font-size: 1.5rem; margin-bottom: 0.2rem;">Xin chào, Quản trị viên!</h2>
+                        <p style="color: var(--text-muted); font-size: 0.9rem;"><i class="fas fa-check-circle" style="color: var(--success);"></i> Hệ thống đang hoạt động</p>
+                    </div>
+                    <button id="btn-logout" class="btn btn-danger" style="background: var(--danger); padding: 0.75rem 1.5rem;">
+                        <i class="fas fa-sign-out-alt"></i> Đăng xuất
+                    </button>
+                </div>
+                
+                <div class="admin-layout" style="display: grid; grid-template-columns: 1fr 350px; gap: 2rem;">
+                    <!-- Left Column: Ideas Management -->
+                    <div class="main-admin-content">
+                        <!-- Pending Section -->
+                        <div id="pending-section" style="margin-bottom: 3rem;">
+                            <h3 style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.8rem;">
+                                <span style="display: inline-block; width: 12px; height: 12px; background: var(--accent); border-radius: 50%;"></span>
+                                Ý tưởng đang chờ phê duyệt
+                            </h3>
+                            <div id="pending-container" class="ideas-grid" style="grid-template-columns: 1fr;">
+                                <!-- Pending ideas load here -->
+                            </div>
+                        </div>
+
+                        <!-- Published Section -->
+                        <div id="published-section">
+                            <h3 style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.8rem;">
+                                <span style="display: inline-block; width: 12px; height: 12px; background: var(--success); border-radius: 50%;"></span>
+                                Tất cả ý tưởng công khai
+                            </h3>
+                            <div id="all-ideas-container" class="ideas-grid" style="grid-template-columns: 1fr;">
+                                <!-- All ideas load here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Settings & Categories -->
+                    <div class="side-admin-content">
+                        <div class="glass-panel" style="padding: 2rem; position: sticky; top: 2rem;">
+                            <h3 style="margin-bottom: 1.5rem; font-size: 1.2rem;"><i class="fas fa-cog"></i> Cấu hình lĩnh vực</h3>
+                            
+                            <div class="form-group" style="margin-bottom: 2rem;">
+                                <label style="font-size: 0.8rem;">Thêm lĩnh vực mới</label>
+                                <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                                    <input type="text" id="new-category-name" placeholder="Tên...">
+                                    <button class="btn btn-primary" onclick="addCategory()" style="padding: 0 1rem;"><i class="fas fa-plus"></i></button>
+                                </div>
+                            </div>
+
+                            <label style="font-size: 0.8rem; margin-bottom: 0.8rem; display: block;">Lĩnh vực hiện có</label>
+                            <div id="categories-list" style="display: flex; flex-direction: column; gap: 0.8rem;">
+                                <!-- Categories list here -->
+                                <p style="font-size: 0.8rem; color: var(--text-muted);">Đang tải...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <script src="js/firebase-config.js" type="module"></script>
+    <script src="js/app.js" type="module"></script>
+</body>
+</html>

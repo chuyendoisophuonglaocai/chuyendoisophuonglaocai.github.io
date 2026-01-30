@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ thống Quản trị Tối cao (Super Admin) - Phường Lào Cai</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <style>
+        .perm-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 12px;
+            width: 100%;
+            margin-top: 10px;
+        }
+        .perm-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            border: 1px solid var(--glass-border);
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            user-select: none;
+            color: var(--text-muted);
+        }
+        .perm-item:has(input:checked) {
+            background: rgba(99, 102, 241, 0.1);
+            border-color: var(--primary);
+            color: var(--text);
+        }
+        .perm-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+        }
+        .perm-item input {
+            accent-color: var(--primary);
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        .admin-card {
+            display: grid;
+            grid-template-columns: 240px 1fr 80px;
+            gap: 2.5rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            align-items: center;
+            border: 1px solid var(--glass-border);
+            transition: all 0.3s ease;
+        }
+        .admin-card:hover {
+            border-color: rgba(245, 158, 11, 0.3);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+        }
+        .admin-id-badge {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .admin-id-icon {
+            width: 45px;
+            height: 45px;
+            background: linear-gradient(135deg, var(--primary), #818cf8);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.2rem;
+            box-shadow: 0 5px 15px rgba(99, 102, 241, 0.3);
+        }
+        @media (max-width: 1000px) {
+            .admin-card {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+            }
+            .admin-card > div {
+                border-right: none !important;
+                padding-right: 0 !important;
+                border-bottom: 1px solid var(--glass-border);
+                padding-bottom: 1.5rem;
+            }
+            .admin-card > div:last-child {
+                border-bottom: none;
+                padding-bottom: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="tech-bg">
+        <div class="grid-overlay"></div>
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div id="bg-spotlight">
+            <div class="ripple-core"></div>
+            <div class="ripple-ring ring-1"></div>
+            <div class="ripple-ring ring-2"></div>
+            <div class="ripple-ring ring-3"></div>
+        </div>
+    </div>
+
+    <!-- Hidden by default until verified -->
+    <div id="main-content" class="container hidden">
+        <header>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3rem; padding-top: 2rem;">
+                <a href="index.html" class="glass-panel" style="padding: 0.5rem 1rem; text-decoration: none; color: var(--text-muted); border-radius: 8px;">
+                    <i class="fas fa-home"></i> Trang chủ
+                </a>
+                <h1 style="font-size: 1.8rem; color: #f59e0b; text-shadow: 0 0 20px rgba(245, 158, 11, 0.3);">QUẢN TRỊ TỐI CAO - ADMIN 0</h1>
+                <a href="admin1.html" class="glass-panel" style="padding: 0.5rem 1rem; text-decoration: none; color: #f59e0b; border-radius: 8px;">
+                    Admin 1 <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+        </header>
+
+        <div class="glass-panel" style="padding: 1.5rem 2.5rem; margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center; border-radius: 25px;">
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <i class="fas fa-shield-alt fa-2x" style="color: #f59e0b;"></i>
+                <div>
+                    <h3 style="margin-bottom: 0;">Bảng điều khiển Tối cao</h3>
+                    <p style="color: var(--text-muted); font-size: 0.8rem;">Toàn quyền quản lý hệ thống Admin 1</p>
+                </div>
+            </div>
+            <button id="btn-super-logout" class="btn btn-danger" style="border-radius: 12px; padding: 0.7rem 1.5rem;"><i class="fas fa-power-off"></i> Đăng xuất</button>
+        </div>
+
+        <section class="admin-section">
+            <div class="admin-section-header">
+                <h3 class="admin-section-title"><i class="fas fa-plus-circle"></i> Cấp tài khoản mới</h3>
+            </div>
+            <div class="glass-panel" style="padding: 2.5rem; border-radius: 25px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 2rem; align-items: flex-end;">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>ID Tài khoản</label>
+                        <input type="text" id="new-admin-user" placeholder="Ví dụ: quanly_phuong">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>Mật khẩu đăng nhập</label>
+                        <input type="text" id="new-admin-pass" placeholder="Tạo mật khẩu...">
+                    </div>
+                    <button class="btn btn-primary" id="btn-create-admin" style="height: 50px; border-radius: 15px; font-weight: 700;">
+                        <i class="fas fa-user-plus"></i> TẠO ADMIN 1
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <section class="admin-section">
+            <div class="admin-section-header">
+                <h3 class="admin-section-title"><i class="fas fa-users-cog"></i> Quản lý & Phân quyền</h3>
+            </div>
+            <div id="admins-list">
+                <!-- Dynamic List -->
+            </div>
+        </section>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <script type="module">
+        import firebaseConfig from './js/firebase-config.js';
+        
+        // Safety Check First
+        if (localStorage.getItem('superAdminLoggedIn') !== 'true') {
+            alert("Bạn không có quyền truy cập trang này. Vui lòng đăng nhập từ hệ thống chung.");
+            location.href = 'admin1.html';
+        } else {
+            document.getElementById('main-content').classList.remove('hidden');
+        }
+
+        const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
+        const db = app.database();
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (localStorage.getItem('superAdminLoggedIn') === 'true') {
+                loadAdmins();
+            }
+
+            document.getElementById('btn-super-logout').onclick = () => {
+                localStorage.removeItem('superAdminLoggedIn');
+                location.href = 'admin1.html';
+            };
+
+            document.getElementById('btn-create-admin').onclick = async () => {
+                const u = document.getElementById('new-admin-user').value.trim();
+                const p = document.getElementById('new-admin-pass').value.trim();
+                if(!u || !p) return showToast("Nhập đủ ID và Pass!", "danger");
+                
+                await db.ref('admins').push().set({
+                    username: u, password: p,
+                    permissions: { 
+                        approve: true, 
+                        edit: true, 
+                        delete: false, 
+                        comment: true, 
+                        category: false,
+                        deleteCategory: false
+                    }
+                });
+                document.getElementById('new-admin-user').value = '';
+                document.getElementById('new-admin-pass').value = '';
+                showToast("Đã tạo Admin 1 mới!", "success");
+            };
+            
+            // Mouse Interaction
+            const spotlight = document.getElementById('bg-spotlight');
+            window.addEventListener('mousemove', e => {
+                if(spotlight) { spotlight.style.left = e.clientX + 'px'; spotlight.style.top = e.clientY + 'px'; }
+            });
+        });
+
+        async function loadAdmins() {
+            const container = document.getElementById('admins-list');
+            db.ref('admins').on('value', snap => {
+                container.innerHTML = '';
+                snap.forEach(child => {
+                    const admin = child.val();
+                    const perms = admin.permissions || {};
+                    const card = document.createElement('div');
+                    card.className = 'glass-panel admin-card';
+                    card.style.borderRadius = '25px';
+                    
+                    card.innerHTML = `
+                        <div style="border-right: 1px solid var(--glass-border); padding-right: 2rem;">
+                            <div class="admin-id-badge">
+                                <div class="admin-id-icon">
+                                    <i class="fas fa-user-shield"></i>
+                                </div>
+                                <div>
+                                    <span style="font-size:0.75rem; color:var(--text-muted); display:block; text-transform:uppercase; letter-spacing:1px;">ID Tài khoản</span>
+                                    <strong style="font-size:1.1rem; color:var(--text);">${admin.username}</strong>
+                                </div>
+                            </div>
+                            <div style="background:rgba(0,0,0,0.3); padding:10px 15px; border-radius:12px; font-size:0.9rem; border: 1px solid rgba(255,255,255,0.05);">
+                                <span style="font-size:0.7rem; color:var(--text-muted); font-weight:700;">MẬT KHẨU:</span> 
+                                <code style="color:#10b981; margin-left:8px; font-weight:700; font-family:'JetBrains Mono', monospace;">${admin.password}</code>
+                            </div>
+                        </div>
+
+                        <div>
+                            <span style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:15px; font-weight:700; text-transform:uppercase; letter-spacing:1px;">Phân quyền hệ thống:</span>
+                            <div class="perm-grid">
+                                ${createPermItem('approve', 'Phê duyệt', perms.approve, child.key)}
+                                ${createPermItem('edit', 'Sửa nội dung', perms.edit, child.key)}
+                                ${createPermItem('delete', 'Xóa ý tưởng', perms.delete, child.key)}
+                                ${createPermItem('comment', 'Xóa bình luận', perms.comment, child.key)}
+                                ${createPermItem('category', 'Thêm lĩnh vực', perms.category, child.key)}
+                                ${createPermItem('deleteCategory', 'Xóa lĩnh vực', perms.deleteCategory, child.key)}
+                            </div>
+                        </div>
+
+                        <div style="display:flex; justify-content:flex-end;">
+                            <button class="btn btn-danger" onclick="window.deleteAdmin('${child.key}')" style="width:50px; height:50px; border-radius:15px;">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            });
+        }
+
+        function createPermItem(type, label, isChecked, id) {
+            return `
+                <label class="perm-item">
+                    <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="window.updatePermission('${id}', '${type}', this.checked)">
+                    <span>${label}</span>
+                </label>
+            `;
+        }
+
+        window.updatePermission = (id, type, val) => {
+            db.ref(`admins/${id}/permissions/${type}`).set(val);
+            showToast("Đã cập nhật quyền!", "primary");
+        };
+
+        window.deleteAdmin = (id) => {
+            if(confirm("Xóa tài khoản này?")) {
+                db.ref(`admins/${id}`).remove();
+                showToast("Đã xóa tài khoản", "success");
+            }
+        };
+
+        function showToast(msg, type) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.style.background = type==='success'?'rgba(16,185,129,0.9)':'rgba(99,102,241,0.9)';
+            toast.style.padding = '1rem 2rem'; toast.style.borderRadius = '15px'; toast.style.marginBottom = '10px';
+            toast.style.color = 'white'; toast.style.boxShadow = '0 10px 30px rgba(0,0,0,0.3)';
+            toast.innerHTML = msg;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+    </script>
+</body>
+</html>

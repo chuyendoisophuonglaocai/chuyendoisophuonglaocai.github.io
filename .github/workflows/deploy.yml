@@ -27,12 +27,17 @@ jobs:
 
       - name: Prepare Files 🏗️
         run: |
+          # Tạo thư mục tạm ở cấp cha để tránh lỗi copy đệ quy
+          mkdir ../build_assets
+          # Copy tất cả các file (bao gồm file ẩn) vào thư mục tạm
+          cp -r . ../build_assets/
+          # Di chuyển từ cấp cha vào thư mục build trong workspace
           mkdir build
-          # Sao chép toàn bộ source vào folder build, loại bỏ các file không cần thiết
-          cp -r . build/
+          cp -r ../build_assets/* build/
+          # Dọn dẹp
           rm -rf build/.git
           rm -rf build/.github
-          rm -rf build/build # Đảm bảo không copy đệ quy
+          rm -rf build/build
 
       - name: Obfuscate JavaScript 🔐
         run: |

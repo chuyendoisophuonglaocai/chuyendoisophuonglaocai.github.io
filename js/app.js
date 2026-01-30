@@ -788,6 +788,36 @@ function setupAdmin() {
 function loadAdminDashboard() {
     if (!db) return;
     
+    // --- UI Visibility based on Permissions ---
+    const catSection = document.getElementById('categories-management-section');
+    const catAddGroup = document.getElementById('category-add-group');
+    const commentSection = document.getElementById('comments-management-section');
+    const pendingSection = document.getElementById('pending-section');
+
+    if (catSection) {
+        // Show category section if user has either category (add) or deleteCategory permission
+        const hasAnyCatPerm = state.adminPermissions.category || state.adminPermissions.deleteCategory;
+        catSection.style.display = hasAnyCatPerm ? 'block' : 'none';
+        
+        // Only show the "Add Category" input group if they have the 'category' (add) permission
+        if (catAddGroup) {
+            const addControls = catAddGroup.querySelector('div');
+            if (addControls) {
+                addControls.style.display = state.adminPermissions.category ? 'flex' : 'none';
+            }
+        }
+    }
+
+    if (commentSection) {
+        // Only show comments management if they have comment permission
+        commentSection.style.display = state.adminPermissions.comment ? 'block' : 'none';
+    }
+
+    if (pendingSection) {
+        // Show pending section if they have approve permission
+        pendingSection.style.display = state.adminPermissions.approve ? 'block' : 'none';
+    }
+
     // Clear previous listener to avoid duplicates
     db.ref('ideas').off('value');
     db.ref('ideas').on('value', (snapshot) => {
@@ -804,7 +834,7 @@ function loadAdminDashboard() {
         state.pending.ideas = pendingIdeas;
         state.pending.total = pendingIdeas.length;
         const pendingEl = document.getElementById('pending-container');
-        if (pendingEl) renderIdeasWithPagination('pending', pendingEl, 'pending-pagination', true);
+        if (pendingEl && state.adminPermissions.approve) renderIdeasWithPagination('pending', pendingEl, 'pending-pagination', true);
 
         // --- All Ideas for DB View ---
         let filteredApproved = allIdeas.filter(i => i.status === 'approved').sort((a,b) => b.timestamp - a.timestamp);
@@ -831,7 +861,7 @@ function loadAdminDashboard() {
     });
 
     // --- Load All Comments for Central Management ---
-    loadCentralComments();
+    if (state.adminPermissions.comment) loadCentralComments();
 }
 
 function loadCentralComments() {

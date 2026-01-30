@@ -1,0 +1,48 @@
+name: Obfuscate and Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    concurrency: ci-${{ github.ref }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout 🛎️
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ⚙️
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Obfuscator 📦
+        run: npm install -g javascript-obfuscator
+
+      - name: Prepare Files 🏗️
+        run: |
+          mkdir build
+          # Sao chép toàn bộ source vào folder build, loại bỏ các file không cần thiết
+          cp -r . build/
+          rm -rf build/.git
+          rm -rf build/.github
+          rm -rf build/build # Đảm bảo không copy đệ quy
+
+      - name: Obfuscate JavaScript 🔐
+        run: |
+          # Tiến hành "mã hóa" (làm rối) toàn bộ file .js trong thư mục js/
+          # Các tùy chọn này giúp code cực kỳ khó đọc nhưng vẫn chạy tốt
+          javascript-obfuscator ./build/js --output ./build/js --compact true --self-defending true --string-array true --string-array-rotate true --string-array-shuffle true --string-array-index-shift true --string-array-threshold 0.8 --rename-globals false
+
+      - name: Deploy to GitHub Pages 🚀
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: build # Thư mục chứa code đã được mã hóa
+          branch: gh-pages # Deploy lên nhánh gh-pages
+          clean: true

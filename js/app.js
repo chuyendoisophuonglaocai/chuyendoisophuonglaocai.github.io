@@ -18,11 +18,12 @@ try {
 // State
 let currentUserIP = '';
 let isAdmin = false;
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 15;
 let state = {
     feed: { page: 1, total: 0, ideas: [] },
     pending: { page: 1, total: 0, ideas: [] },
     allAdmin: { page: 1, total: 0, ideas: [] },
+    commentsAdmin: { page: 1, total: 0, comments: [] },
     adminSearch: '',
     adminCat: 'all',
     expandedId: null,
@@ -869,17 +870,16 @@ function loadCentralComments() {
     if (!container) return;
 
     db.ref('comments').on('value', async (snapshot) => {
-        container.innerHTML = '';
-        const allComments = [];
+        const allCommentsList = [];
         
-        const ideaTitles = {}; // To show which idea the comment belongs to
+        const ideaTitles = {};
         const ideasSnap = await db.ref('ideas').once('value');
         ideasSnap.forEach(s => { ideaTitles[s.key] = s.val().title || 'Không tên'; });
 
         snapshot.forEach(ideaComments => {
             const ideaId = ideaComments.key;
             ideaComments.forEach(c => {
-                allComments.push({
+                allCommentsList.push({
                     id: c.key,
                     ideaId: ideaId,
                     ideaTitle: ideaTitles[ideaId],
@@ -888,30 +888,51 @@ function loadCentralComments() {
             });
         });
 
-        allComments.sort((a,b) => b.timestamp - a.timestamp);
+        allCommentsList.sort((a,b) => b.timestamp - a.timestamp);
         
-        if (allComments.length === 0) {
-            container.innerHTML = '<p style="text-align:center; padding:2rem; color:var(--text-muted);">Chưa có bình luận nào.</p>';
-            return;
-        }
+        state.commentsAdmin.comments = allCommentsList;
+        state.commentsAdmin.total = allCommentsList.length;
+        
+        renderCommentsWithPagination(container, 'comments-pagination');
+    });
+}
 
-        allComments.forEach(c => {
-            const div = document.createElement('div');
-            div.className = 'idea-row';
-            div.style.gridTemplateColumns = '1.5fr 2fr 100px';
-            div.innerHTML = `
-                <div class="cell" style="font-size:0.75rem;"><i class="fas fa-lightbulb"></i> ${c.ideaTitle}</div>
-                <div class="cell" style="font-weight:500;">${c.text}</div>
-                <div class="cell cell-actions">
-                    ${state.adminPermissions.comment ? `
-                        <button class="btn btn-danger admin-btn-small" onclick="window.deleteComment('${c.ideaId}', '${c.id}')">
-                            <i class="fas fa-trash-alt"></i>
-                        </button>
-                    ` : '<span style="font-size:0.7rem; color:var(--text-muted);">Không có quyền xóa</span>'}
-                </div>
-            `;
-            container.appendChild(div);
-        });
+function renderCommentsWithPagination(container, paginationId) {
+    const s = state.commentsAdmin;
+    const start = (s.page - 1) * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    const paginated = s.comments.slice(start, end);
+
+    renderCentralComments(paginated, container);
+    renderPagination(paginationId, s.total, s.page, (newPage) => {
+        s.page = newPage;
+        renderCommentsWithPagination(container, paginationId);
+    });
+}
+
+function renderCentralComments(comments, container) {
+    container.innerHTML = '';
+    if (comments.length === 0) {
+        container.innerHTML = '<p style="text-align:center; padding:2rem; color:var(--text-muted);">Chưa có bình luận nào.</p>';
+        return;
+    }
+
+    comments.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'idea-row';
+        div.style.gridTemplateColumns = '1.5fr 2fr 100px';
+        div.innerHTML = `
+            <div class="cell" style="font-size:0.75rem;"><i class="fas fa-lightbulb"></i> ${c.ideaTitle}</div>
+            <div class="cell" style="font-weight:500;">${c.text}</div>
+            <div class="cell cell-actions">
+                ${state.adminPermissions.comment ? `
+                    <button class="btn btn-danger admin-btn-small" onclick="window.deleteComment('${c.ideaId}', '${c.id}')">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                ` : '<span style="font-size:0.7rem; color:var(--text-muted);">Không có quyền xóa</span>'}
+            </div>
+        `;
+        container.appendChild(div);
     });
 }
 

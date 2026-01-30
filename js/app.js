@@ -25,8 +25,37 @@ let state = {
     allAdmin: { page: 1, total: 0, ideas: [] },
     adminSearch: '',
     adminCat: 'all',
-    expandedId: null
+    expandedId: null,
+    adminPermissions: {
+        approve: false,
+        edit: false,
+        delete: false,
+        comment: false,
+        category: false,
+        deleteCategory: false
+    }
 };
+
+// Content Filter
+const PROHIBITED_WORDS = [
+    // Tiếng Việt phổ biến & viết tắt
+    'đm', 'dm', 'đcm', 'dcm', 'vcl', 'vkl', 'vcc', 'vclm', 'clm', 'cl', 'loz', 'lồn', 'lon', 'cặc', 'cac', 'địt', 'dit', 'đú', 'du', 'đéo', 'deo', 'đis', 'dis', 'mẹ mày', 'me may', 'con mẹ', 'bố mày', 'bo may', 'thằng chó', 'thang cho', 'ngu lol', 'ngu lồn', 'hãm', 'ham', 'đù', 'du', 'đm',
+    // Tiếng Anh (English profanity)
+    'fuck', 'fucking', 'shit', 'bitch', 'asshole', 'bastard', 'pussy', 'dick', 'cock', 'sex', 'porn', 'fucker', 'hell', 'damn',
+    // Nội dung nhạy cảm/chính trị (Highly sensitive)
+    'phản động', 'phan dong', 'biểu tình', 'bieu tinh', 'kích động', 'kich dong', 'chế độ', 'che do', 'nhà nước', 'nha nuoc', 'biểu tình', 'đảng', 'dang', 'biểu tình'
+];
+
+function isCleanContent(text) {
+    if (!text) return true;
+    // Normalize: lowercase and remove ALL special characters/spaces to catch 'd.m', 'v_c_l', etc.
+    const normalizedText = text.toLowerCase().replace(/[^a-z0-9àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/g, '');
+    
+    return !PROHIBITED_WORDS.some(word => {
+        const cleanWord = word.replace(/\s+/g, ''); // also clean spaces in prohibited words for comparison
+        return normalizedText.includes(cleanWord);
+    });
+}
 
 // Init
 document.addEventListener('DOMContentLoaded', async () => {
@@ -38,6 +67,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadCategories();
     loadIdeas();
     setupLightbox();
+    setupInteractiveBG();
     
     const sortOrderSelect = document.getElementById('sort-order');
     const categoryFilter = document.getElementById('category-filter');
@@ -86,6 +116,36 @@ function setupAdminSession() {
 
 function processLoginSuccess() {
     isAdmin = true;
+    const initialData = JSON.parse(localStorage.getItem('adminData') || '{}');
+    state.adminPermissions = initialData.permissions || {
+        approve: false, edit: false, delete: false, comment: false, category: false, deleteCategory: false
+    };
+
+    // --- RE-SYNC PERMISSIONS IN REAL-TIME ---
+    // This allows Admin 0 to change permissions while Admin 1 is logged in
+    const adminsRef = db.ref('admins');
+    adminsRef.once('value').then(snap => {
+        let adminKey = null;
+        snap.forEach(child => {
+            if(child.val().username === initialData.username) adminKey = child.key;
+        });
+        
+        if (adminKey) {
+            db.ref(`admins/${adminKey}/permissions`).on('value', permsSnap => {
+                if(permsSnap.exists()) {
+                    state.adminPermissions = permsSnap.val();
+                    // Update the local storage copy too
+                    initialData.permissions = state.adminPermissions;
+                    localStorage.setItem('adminData', JSON.stringify(initialData));
+                    // Re-load UI elements that depend on permissions
+                    loadCategories();
+                    loadAdminDashboard();
+                }
+            });
+        }
+    });
+    // ----------------------------------------
+
     const adminLoginUI = document.getElementById('admin-login-ui');
     const adminDashboard = document.getElementById('admin-dashboard');
     
@@ -104,6 +164,17 @@ function debounce(func, wait) {
         clearTimeout(timeout);
         timeout = setTimeout(later, wait);
     };
+}
+
+// Interactive Background
+function setupInteractiveBG() {
+    const spotlight = document.getElementById('bg-spotlight');
+    if (!spotlight) return;
+
+    window.addEventListener('mousemove', (e) => {
+        spotlight.style.left = e.clientX + 'px';
+        spotlight.style.top = e.clientY + 'px';
+    });
 }
 
 // Fetch IP
@@ -168,12 +239,20 @@ function setupForm() {
             return;
         }
 
+        const title = document.getElementById('title').value;
+        const description = document.getElementById('description').value;
+        const fullname = document.getElementById('fullname').value;
+
+        if (!isCleanContent(title) || !isCleanContent(description) || !isCleanContent(fullname)) {
+            return showToast("Nội dung chứa từ ngữ không phù hợp. Vui lòng kiểm tra lại!", "danger");
+        }
+
         const ideaData = {
             category: document.getElementById('category').value,
-            title: document.getElementById('title').value,
-            description: document.getElementById('description').value,
+            title: title,
+            description: description,
             author: {
-                name: document.getElementById('fullname').value,
+                name: fullname,
                 phone: document.getElementById('phone').value,
                 address: document.getElementById('address').value
             },
@@ -251,7 +330,9 @@ function loadCategories() {
                 div.className = 'category-chip';
                 div.innerHTML = `
                     <span class="cat-name">${val}</span>
+                    ${state.adminPermissions.deleteCategory ? `
                     <i class="fas fa-times delete-cat" onclick="event.stopPropagation(); window.deleteCategory('${cat.id}')"></i>
+                    ` : ''}
                 `;
                 adminList.appendChild(div);
             });
@@ -260,6 +341,7 @@ function loadCategories() {
 }
 
 window.addCategory = async () => {
+    if (!isAdmin || !state.adminPermissions.category) return showToast("Bạn không có quyền thêm lĩnh vực!", "danger");
     const input = document.getElementById('new-category-name');
     if (!input) return;
     const name = input.value.trim();
@@ -277,6 +359,7 @@ window.addCategory = async () => {
 };
 
 window.deleteCategory = async (id) => {
+    if (!isAdmin || !state.adminPermissions.deleteCategory) return showToast("Bạn không có quyền xóa lĩnh vực!", "danger");
     if (confirm("Xóa lĩnh vực này?")) {
         try {
             await db.ref('categories').child(id).remove();
@@ -428,10 +511,12 @@ function renderIdeas(ideas, container, isAdminView = false) {
                         <button class="action-btn" onclick="event.stopPropagation(); handleLike('${idea.id}')"><i class="fas fa-heart"></i> ${idea.likes||0}</button>
                         <button class="action-btn" onclick="event.stopPropagation(); toggleComments('${idea.id}')"><i class="fas fa-comment"></i> ${idea.commentsCount||0}</button>
                     </div>
+                    <p style="font-size: 0.7rem; color: var(--primary); opacity: 0.8; margin-bottom: 1rem;"><i class="fas fa-shield-alt"></i> Bạn chỉ được Thích 1 lần và Bình luận 1 lần duy nhất.</p>
                     <div id="comment-section-${idea.id}" class="comment-box hidden" onclick="event.stopPropagation()">
                         <div id="comments-${idea.id}"></div>
-                        <input type="text" id="input-${idea.id}" placeholder="Bình luận...">
-                        <button class="btn btn-primary" onclick="handleComment('${idea.id}')">Gửi</button>
+                        <input type="text" id="input-${idea.id}" placeholder="Viết bình luận của bạn...">
+                        <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;"><i class="fas fa-info-circle"></i> Bình luận của bạn sẽ là duy nhất và không thể sửa, chỉ có thể xóa để viết lại.</p>
+                        <button class="btn btn-primary" style="margin-top: 10px;" onclick="handleComment('${idea.id}')">Gửi bình luận</button>
                     </div>
                 </div>
             `;
@@ -497,17 +582,21 @@ function renderIdeas(ideas, container, isAdminView = false) {
                 <div class="cell"><span class="category-tag" style="font-size: 0.65rem; padding: 2px 8px;">${idea.category}</span></div>
                 <div class="cell cell-images">${imgHtml}</div>
                 <div class="cell cell-actions">
-                    ${idea.status === 'pending' ? `
-                        <button class="btn btn-primary admin-btn-small" onclick="event.stopPropagation(); approveIdea('${idea.id}')" title="Duyệt">
+                    ${idea.status === 'pending' && state.adminPermissions.approve ? `
+                        <button class="btn btn-primary admin-btn-small" onclick="event.stopPropagation(); window.approveIdea('${idea.id}')" title="Duyệt">
                             <i class="fas fa-check"></i>
                         </button>
                     ` : ''}
-                    <button class="btn admin-btn-small" style="background: var(--accent); color: white;" onclick="event.stopPropagation(); editIdea('${idea.id}')" title="Sửa">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="btn btn-danger admin-btn-small" onclick="event.stopPropagation(); deleteIdea('${idea.id}')" title="Xóa">
-                        <i class="fas fa-trash"></i>
-                    </button>
+                    ${state.adminPermissions.edit ? `
+                        <button class="btn admin-btn-small" style="background: var(--accent); color: white;" onclick="event.stopPropagation(); window.editIdea('${idea.id}')" title="Sửa">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                    ` : ''}
+                    ${state.adminPermissions.delete ? `
+                        <button class="btn btn-danger admin-btn-small" onclick="event.stopPropagation(); window.deleteIdea('${idea.id}')" title="Xóa">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    ` : ''}
                     <button class="btn admin-btn-small" style="background: var(--text-muted); color: white;" onclick="event.stopPropagation(); viewDetails('${idea.id}')" title="Xem">
                         <i class="fas fa-eye"></i>
                     </button>
@@ -526,19 +615,57 @@ window.viewDetails = async (id) => {
 
 // Like, Comment, Admin Actions
 window.handleLike = async (id) => {
-    if (localStorage.getItem('liked_'+id)) return showToast("Bạn đã thích rồi!", "primary");
-    await db.ref(`ideas/${id}/likes`).transaction(c => (c||0)+1);
-    localStorage.setItem('liked_'+id, 'true');
-    loadIdeas();
+    if (!currentUserIP) return showToast("Đang xác thực kết nối...", "primary");
+    
+    try {
+        const likeRef = db.ref(`interactions/likes/${id}/${currentUserIP}`);
+        const snap = await likeRef.once('value');
+        
+        if (snap.exists()) {
+            return showToast("Bạn đã thích ý tưởng này rồi!", "primary");
+        }
+
+        await likeRef.set(Date.now());
+        await db.ref(`ideas/${id}/likes`).transaction(c => (c||0)+1);
+        showToast("Cảm ơn bạn đã yêu thích!", "success");
+    } catch (e) {
+        showToast("Lỗi hệ thống!", "danger");
+    }
 };
 
 window.handleComment = async (id) => {
-    const val = document.getElementById('input-'+id).value.trim();
-    if (val) {
-        await db.ref(`comments/${id}`).push({ text: val, timestamp: Date.now() });
-        await db.ref(`ideas/${id}/commentsCount`).transaction(c => (c||0)+1);
-        document.getElementById('input-'+id).value = '';
-        loadComments(id);
+    if (!currentUserIP) return showToast("Đang xác thực kết nối...", "primary");
+
+    try {
+        const logRef = db.ref(`interactions/comments/${id}/${currentUserIP}`);
+        const snap = await logRef.once('value');
+
+        if (snap.exists()) {
+            return showToast("Bạn chỉ được bình luận một lần cho mỗi ý tưởng!", "primary");
+        }
+
+        const input = document.getElementById('input-'+id);
+        const val = input.value.trim();
+
+        if (!isCleanContent(val)) {
+            return showToast("Bình luận chứa từ ngữ không phù hợp!", "danger");
+        }
+        
+        if (val) {
+            showToast("Đang gửi...", "primary");
+            await logRef.set(Date.now());
+            await db.ref(`comments/${id}`).push({ 
+                text: val, 
+                timestamp: Date.now(),
+                ip: currentUserIP 
+            });
+            await db.ref(`ideas/${id}/commentsCount`).transaction(c => (c||0)+1);
+            input.value = '';
+            loadComments(id);
+            showToast("Đã gửi bình luận!", "success");
+        }
+    } catch (e) {
+        showToast("Lỗi: " + e.message, "danger");
     }
 };
 
@@ -555,24 +682,95 @@ function loadComments(id) {
         snap.forEach(c => {
             const div = document.createElement('div');
             div.className = 'comment';
-            div.innerHTML = `<span>${c.val().text}</span> ${isAdmin ? `<button onclick="deleteComment('${id}','${c.key}')">Xóa</button>` : ''}`;
+            div.innerHTML = `
+                <span>${c.val().text}</span>
+                ${(isAdmin && state.adminPermissions.comment) || (currentUserIP && c.val().ip === currentUserIP) ? `
+                <button class="delete-comment-btn" onclick="window.deleteComment('${id}', '${c.key}')" title="Xóa">
+                    <i class="fas fa-trash-alt"></i>
+                </button>` : ''}
+            `;
             el.appendChild(div);
         });
     });
 }
 
+window.deleteComment = async (ideaId, commentId) => {
+    try {
+        const commentSnap = await db.ref(`comments/${ideaId}/${commentId}`).once('value');
+        const commentData = commentSnap.val();
+        if (!commentData) return;
+
+        let canDelete = false;
+        // 1. IP Check (Compare current IP with comment's recorded IP)
+        if (currentUserIP && commentData.ip === currentUserIP) {
+            canDelete = true;
+        } else if (isAdmin && state.adminPermissions.comment) {
+            // 2. Admin Permission Check
+            canDelete = true;
+        } else {
+            // 3. Password Check (Fallback for Super Admin or manual override)
+            const pass = prompt("Nhập mật khẩu tối cao để xóa:");
+            if (pass === 'tranhuyhoang') {
+                canDelete = true;
+            }
+        }
+
+        if (canDelete) {
+            if (confirm("Bạn có chắc chắn muốn xóa bình luận này?")) {
+                await db.ref(`comments/${ideaId}/${commentId}`).remove();
+                await db.ref(`ideas/${ideaId}/commentsCount`).transaction(c => (c||1)-1);
+                
+                // Clear the interaction log so the user can comment again
+                const commenterIP = commentData.ip;
+                if (commenterIP) {
+                    await db.ref(`interactions/comments/${ideaId}/${commenterIP}`).remove();
+                }
+
+                showToast("Đã xóa bình luận!", "success");
+                loadComments(ideaId);
+            }
+        } else {
+            showToast("Bạn không có quyền xóa bình luận này!", "danger");
+        }
+    } catch (e) {
+        showToast("Lỗi: " + e.message, "danger");
+    }
+};
+
 function setupAdmin() {
     const btn = document.getElementById('btn-login');
     if (btn) {
-        btn.onclick = () => {
+        btn.onclick = async () => {
             const u = document.getElementById('admin-user').value.trim();
             const p = document.getElementById('admin-pass').value.trim();
+            
+            showToast("Đang xác thực...", "primary");
+
+            // 1. Check Super Admin (Admin 0)
             if (u === 'ADMIN' && p === 'tranhuyhoang') {
+                localStorage.setItem('superAdminLoggedIn', 'true');
+                showToast("Chào mừng Super Admin! Đang chuyển hướng...", "success");
+                setTimeout(() => {
+                    location.href = 'admin0.html';
+                }, 1000);
+                return;
+            }
+
+            // 2. Check Regular Admin (Admin 1)
+            const adminsSnap = await db.ref('admins').once('value');
+            let found = null;
+            adminsSnap.forEach(s => {
+                const a = s.val();
+                if(a.username === u && a.password === p) found = a;
+            });
+
+            if (found) {
                 localStorage.setItem('adminLoggedIn', 'true');
+                localStorage.setItem('adminData', JSON.stringify(found));
                 processLoginSuccess();
-                showToast("Thành công!", "success");
+                showToast("Đăng nhập Admin thành công!", "success");
             } else {
-                showToast("Sai thông tin!", "danger");
+                showToast("Tài khoản hoặc mật khẩu không chính xác!", "danger");
             }
         };
     }
@@ -580,6 +778,8 @@ function setupAdmin() {
     if (logout) {
         logout.onclick = () => {
             localStorage.removeItem('adminLoggedIn');
+            localStorage.removeItem('adminData');
+            localStorage.removeItem('superAdminLoggedIn');
             location.reload();
         };
     }
@@ -629,6 +829,60 @@ function loadAdminDashboard() {
         console.error("Firebase Admin Error:", error);
         showToast("Không thể tải dữ liệu quản trị!", "danger");
     });
+
+    // --- Load All Comments for Central Management ---
+    loadCentralComments();
+}
+
+function loadCentralComments() {
+    const container = document.getElementById('all-comments-list');
+    if (!container) return;
+
+    db.ref('comments').on('value', async (snapshot) => {
+        container.innerHTML = '';
+        const allComments = [];
+        
+        const ideaTitles = {}; // To show which idea the comment belongs to
+        const ideasSnap = await db.ref('ideas').once('value');
+        ideasSnap.forEach(s => { ideaTitles[s.key] = s.val().title || 'Không tên'; });
+
+        snapshot.forEach(ideaComments => {
+            const ideaId = ideaComments.key;
+            ideaComments.forEach(c => {
+                allComments.push({
+                    id: c.key,
+                    ideaId: ideaId,
+                    ideaTitle: ideaTitles[ideaId],
+                    ...c.val()
+                });
+            });
+        });
+
+        allComments.sort((a,b) => b.timestamp - a.timestamp);
+        
+        if (allComments.length === 0) {
+            container.innerHTML = '<p style="text-align:center; padding:2rem; color:var(--text-muted);">Chưa có bình luận nào.</p>';
+            return;
+        }
+
+        allComments.forEach(c => {
+            const div = document.createElement('div');
+            div.className = 'idea-row';
+            div.style.gridTemplateColumns = '1.5fr 2fr 100px';
+            div.innerHTML = `
+                <div class="cell" style="font-size:0.75rem;"><i class="fas fa-lightbulb"></i> ${c.ideaTitle}</div>
+                <div class="cell" style="font-weight:500;">${c.text}</div>
+                <div class="cell cell-actions">
+                    ${state.adminPermissions.comment ? `
+                        <button class="btn btn-danger admin-btn-small" onclick="window.deleteComment('${c.ideaId}', '${c.id}')">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    ` : '<span style="font-size:0.7rem; color:var(--text-muted);">Không có quyền xóa</span>'}
+                </div>
+            `;
+            container.appendChild(div);
+        });
+    });
 }
 
 function setupLightbox() {
@@ -649,22 +903,29 @@ function setupLightbox() {
 }
 
 window.approveIdea = async (id) => { 
-    if(isAdmin) {
+    if(isAdmin && state.adminPermissions.approve) {
         try {
             await db.ref(`ideas/${id}`).update({status:'approved'});
-            console.log(`[Admin] Idea ${id} approved.`);
             showToast("Đã duyệt ý tưởng!", "success");
         } catch (e) {
             showToast("Lỗi khi duyệt!", "danger");
         }
-    } 
+    } else {
+        showToast("Bạn không có quyền duyệt!", "danger");
+    }
 };
-window.deleteIdea = async (id) => { if(isAdmin && confirm("Xóa?")) await db.ref(`ideas/${id}`).remove(); };
+window.deleteIdea = async (id) => { 
+    if(isAdmin && state.adminPermissions.delete) {
+        if(confirm("Xóa ý tưởng này vĩnh viễn?")) await db.ref(`ideas/${id}`).remove(); 
+    } else {
+        showToast("Bạn không có quyền xóa!", "danger");
+    }
+};
 window.editIdea = async (id) => {
-    if(!isAdmin) return;
+    if(!isAdmin || !state.adminPermissions.edit) return showToast("Bạn không có quyền sửa!", "danger");
     const snap = await db.ref(`ideas/${id}`).once('value');
-    const t = prompt("Tên:", snap.val().title);
-    const d = prompt("Mô tả:", snap.val().description);
+    const t = prompt("Sửa tên ý tưởng:", snap.val().title);
+    const d = prompt("Sửa mô tả:", snap.val().description);
     if(t && d) await db.ref(`ideas/${id}`).update({title:t, description:d});
 };
 

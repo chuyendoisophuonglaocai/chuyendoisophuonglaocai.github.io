@@ -139,6 +139,20 @@ body {
   margin-top: 15px;
 }
 
+@media (max-width: 640px) {
+  .glass-container {
+    margin: 15px;
+    padding: 25px 20px;
+    border-radius: 16px;
+  }
+  .image-preview-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .upload-header h1 {
+    font-size: 1.5rem;
+  }
+}
+
 .preview-item {
   aspect-ratio: 1;
   border-radius: 8px;
@@ -176,8 +190,9 @@ body {
 
 /* Display Page Styles - Outdoor Billboard Look */
 .display-mode {
-  background: #000; /* Deep dark for contrast */
+  background: #000;
   height: 100vh;
+  height: 100dvh; /* Dynamic viewport height for mobile browsers */
   padding: 0;
   display: block;
   overflow: hidden;
@@ -188,6 +203,7 @@ body {
   position: relative;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   max-width: none;
   margin: 0;
 }
@@ -512,15 +528,55 @@ body {
   }
 }
 
-@media (max-width: 1024px) {
-  .main-display {
-    grid-template-columns: 1fr;
-    height: auto;
+@media (max-width: 768px) {
+  .ad-info {
+    width: auto;
+    left: 20px;
+    right: 20px;
+    bottom: 80px;
+    padding: 15px 20px;
   }
+  .ad-info h1 { font-size: 1.2rem; }
+  .ad-info p { font-size: 0.9rem; }
+  
   .sidebar-queue {
-    height: 400px;
+    display: none; /* Hide sidebar on mobile for cleaner look */
   }
-  .ad-info h1 {
-    font-size: 2rem;
+  
+  .qr-info {
+    right: 20px;
+    bottom: 20px;
+    width: 80px;
+    padding: 5px;
   }
+  .qr-info canvas { width: 70px !important; height: 70px !important; }
+  .qr-info p { font-size: 0.5rem; }
+  .qr-title { display: none; }
+
+  .thumbnail-strip {
+    left: 10px;
+    top: 10px;
+    gap: 5px;
+  }
+  .thumb {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ad-overlay {
+    left: 10px;
+    right: 10px;
+    bottom: 70px;
+  }
+  .ad-info {
+    padding: 12px;
+    border-radius: 15px;
+  }
+  .qr-info {
+    width: 60px;
+  }
+  .qr-info canvas { width: 50px !important; height: 50px !important; }
+  .qr-info p { display: none; }
 }

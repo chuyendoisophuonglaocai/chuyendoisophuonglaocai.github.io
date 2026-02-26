@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bảng Tin Quảng Cáo Kỹ Thuật Số</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Firebase Compat SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+</head>
+<body class="display-mode">
+    <div class="main-display">
+        <div id="currentAd" class="current-ad-container">
+            <div class="placeholder">Đang tải bảng tin...</div>
+        </div>
+        
+        <div class="sidebar-queue">
+            <h3>QUẢNG CÁO TIẾP THEO</h3>
+            <div id="adQueue" class="queue-list"></div>
+        </div>
+
+        <div class="qr-info">
+            <h4 class="qr-title">BẢNG TIN QUẢNG CÁO KỸ THUẬT SỐ</h4>
+            <canvas id="qrCode"></canvas>
+            <p>QUÉT ĐỂ ĐĂNG</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
+    <script type="module">
+        import firebaseConfig from '../js/firebase-config.js';
+
+        // Initialize Firebase
+        const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let currentIndex = 0;
+        let advertisements = [];
+        let rotationInterval;
+
+        const currentAdEl = document.getElementById('currentAd');
+        const adQueueEl = document.getElementById('adQueue');
+
+        // Generate QR Code
+        new QRious({
+            element: document.getElementById('qrCode'),
+            value: new URL('upload.html', window.location.href).href,
+            size: 150,
+            background: 'white',
+            foreground: 'black'
+        });
+
+        let rotationSpeed = 30000; // Mặc định 30s
+
+        // Listen to settings
+        db.ref('settings').on('value', (snapshot) => {
+            const settings = snapshot.val();
+            if (settings && settings.rotationSpeed) {
+                rotationSpeed = settings.rotationSpeed;
+                if (advertisements.length > 0) startRotation();
+            }
+        });
+
+        // Listen to Realtime Database
+        db.ref('advertisements').orderByChild('createdAt').on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                advertisements = Object.keys(data).map(key => ({
+                    id: key,
+                    ...data[key]
+                })).sort((a, b) => b.createdAt - a.createdAt);
+                
+                if (advertisements.length > 0) {
+                    renderDisplay();
+                    startRotation();
+                }
+            } else {
+                advertisements = [];
+                currentAdEl.innerHTML = '<div class="no-ads">Hiện chưa có quảng cáo nào. Hãy quét mã QR để đăng!</div>';
+                adQueueEl.innerHTML = '';
+            }
+        });
+
+        function renderDisplay() {
+            if (advertisements.length === 0) return;
+            
+            if (currentIndex >= advertisements.length) currentIndex = 0;
+            const current = advertisements[currentIndex];
+
+            // Xác định thời lượng cho quảng cáo này (ưu tiên thời lượng riêng)
+            const activeDuration = current.customDuration || rotationSpeed;
+
+            if (currentAdEl.dataset.cycleId) clearInterval(parseInt(currentAdEl.dataset.cycleId));
+
+            currentAdEl.innerHTML = `
+                <div class="media-fader">
+                    <img src="${current.imageUrls[0]}" class="main-img fx-fade" id="mainImage">
+                </div>
+                <div class="thumbnail-strip">
+                    ${current.imageUrls.map((url, i) => `<img src="${url}" class="thumb ${i===0?'active':''}" data-index="${i}">`).join('')}
+                </div>
+                <div class="ad-overlay">
+                    <div class="ad-info">
+                        <h1 class="animate-text">${current.title}</h1>
+                        <p class="animate-text-delay">${current.description}</p>
+                    </div>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progressBar" style="animation-duration: ${activeDuration}ms"></div>
+                </div>
+            `;
+
+            const effects = ['fx-fade', 'fx-slide', 'fx-scale', 'fx-rotate'];
+            const applyRandomEffect = (imgEl) => {
+                effects.forEach(fx => imgEl.classList.remove(fx));
+                const randomFx = effects[Math.floor(Math.random() * effects.length)];
+                imgEl.style.animation = 'none';
+                imgEl.offsetHeight;
+                imgEl.style.animation = null;
+                imgEl.classList.add(randomFx);
+            };
+
+            document.querySelectorAll('.thumb').forEach(thumb => {
+                thumb.onclick = (e) => {
+                    const mainImg = document.getElementById('mainImage');
+                    mainImg.src = e.target.src;
+                    applyRandomEffect(mainImg);
+                    document.querySelectorAll('.thumb').forEach(t => t.classList.remove('active'));
+                    e.target.classList.add('active');
+                };
+            });
+
+            let imgIdx = 0;
+            const internalCycle = setInterval(() => {
+                const thumbs = document.querySelectorAll('.thumb');
+                if (thumbs.length <= 1) return;
+                imgIdx = (imgIdx + 1) % thumbs.length;
+                thumbs[imgIdx].click();
+            }, 5000);
+            currentAdEl.dataset.cycleId = internalCycle;
+
+            const nextAds = [];
+            for(let i = 1; i <= Math.min(advertisements.length - 1, 10); i++) {
+                const idx = (currentIndex + i) % advertisements.length;
+                nextAds.push(advertisements[idx]);
+            }
+
+            adQueueEl.innerHTML = nextAds.map(ad => `
+                <div class="queue-item">
+                    <img src="${ad.imageUrls[0]}">
+                    <div class="queue-text">
+                        <h4>${ad.title}</h4>
+                    </div>
+                </div>
+            `).join('');
+
+            // Tự động chuyển vùng sau khi hết thời lượng đặc định
+            if (rotationInterval) clearTimeout(rotationInterval);
+            if (advertisements.length > 1) {
+                rotationInterval = setTimeout(() => {
+                    currentIndex = (currentIndex + 1) % advertisements.length;
+                    renderDisplay();
+                }, activeDuration);
+            }
+        }
+
+        function startRotation() {
+            // Không làm gì vì renderDisplay đã tự động kích hoạt timeout tiếp theo
+        }
+    </script>
+</body>
+</html>

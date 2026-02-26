@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng Quảng Cáo - Tin Rao Vặt Thế Hệ Mới</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Firebase Compat SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+</head>
+<body>
+    <div class="glass-container">
+        <div class="upload-header">
+            <h1>🚀 Đăng Quảng Cáo</h1>
+            <p>Hiện đại - Văn minh - Không dán bừa bãi</p>
+        </div>
+        
+        <form id="adForm">
+            <div class="input-group">
+                <label for="title">Tiêu đề quảng cáo (Tối đa 30 ký tự)</label>
+                <input type="text" id="title" maxlength="30" placeholder="VD: Bán căn hộ chung cư..." required>
+                <small class="char-count" id="titleCount">0/30</small>
+            </div>
+            
+            <div class="input-group">
+                <label for="description">Mô tả chi tiết (Tối đa 100 ký tự)</label>
+                <textarea id="description" rows="4" maxlength="100" placeholder="Nhập chi tiết về sản phẩm hoặc dịch vụ..." required></textarea>
+                <small class="char-count" id="descCount">0/100</small>
+            </div>
+            
+            <div class="input-group">
+                <label for="images">Hình ảnh (Tối đa 3 ảnh)</label>
+                <div class="file-upload-wrapper">
+                    <input type="file" id="images" multiple accept="image/*" required>
+                    <div class="file-custom-ui">
+                        <span class="icon">📸</span>
+                        <span class="text">Chọn ảnh sản phẩm</span>
+                        <span class="subtext">Tối đa 3 ảnh, nén chất lượng cao (~200KB)</span>
+                    </div>
+                </div>
+                <div id="imagePreview" class="image-preview-grid"></div>
+                <div class="upload-tips" style="margin-top: 15px; font-size: 0.8rem; color: var(--text-dim); background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; border: 1px dashed rgba(255,255,255,0.2);">
+                    <strong>💡 Mẹo để tin đăng đẹp hơn:</strong>
+                    <ul style="margin-top: 5px; margin-left: 15px;">
+                        <li>Nên dùng <b>ảnh nằm ngang</b> (tỷ lệ 16:9).</li>
+                        <li>Tránh để thông tin quan trọng ở các góc ảnh.</li>
+                        <li>Ảnh rõ nét, ánh sáng tốt sẽ thu hút người xem hơn.</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <button type="submit" id="submitBtn">
+                <span class="btn-text">Lưu & Đăng Ngay</span>
+                <div class="loader"></div>
+            </button>
+        </form>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script type="module">
+        import firebaseConfig from '../js/firebase-config.js';
+
+        // Initialize Firebase
+        const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const adForm = document.getElementById('adForm');
+        const imageInput = document.getElementById('images');
+        const imagePreview = document.getElementById('imagePreview');
+        const submitBtn = document.getElementById('submitBtn');
+        const toast = document.getElementById('toast');
+        const titleInput = document.getElementById('title');
+        const descInput = document.getElementById('description');
+
+        titleInput.addEventListener('input', () => {
+            document.getElementById('titleCount').textContent = `${titleInput.value.length}/30`;
+        });
+
+        descInput.addEventListener('input', () => {
+            document.getElementById('descCount').textContent = `${descInput.value.length}/100`;
+        });
+
+        let compressedBase64Images = [];
+
+        imageInput.addEventListener('change', async (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length > 3) {
+                showToast('Tối đa là 3 ảnh', 'error');
+                imageInput.value = '';
+                imagePreview.innerHTML = '';
+                return;
+            }
+            if (files.length === 0) return;
+
+            imagePreview.innerHTML = '';
+            compressedBase64Images = [];
+            
+            for (const file of files) {
+                const base64 = await compressAndGetBase64(file);
+                compressedBase64Images.push(base64);
+                
+                const div = document.createElement('div');
+                div.className = 'preview-item';
+                div.innerHTML = `<img src="${base64}" alt="preview">`;
+                imagePreview.appendChild(div);
+            }
+        });
+
+        async function compressAndGetBase64(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+                        const MAX_SIDE = 1200; // Tăng kích thước để ảnh sắc nét hơn
+                        if (width > height) {
+                            if (width > MAX_SIDE) { height *= MAX_SIDE / width; width = MAX_SIDE; }
+                        } else {
+                            if (height > MAX_SIDE) { width *= MAX_SIDE / height; height = MAX_SIDE; }
+                        }
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        // Tăng chất lượng nén lên để đạt khoảng 200KB
+                        let quality = 0.8; 
+                        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+                        resolve(dataUrl);
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        adForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (compressedBase64Images.length === 0) {
+                showToast('Vui lòng chọn ít nhất 1 ảnh', 'error');
+                return;
+            }
+
+            submitBtn.classList.add('loading');
+            submitBtn.disabled = true;
+
+            try {
+                const adsRef = db.ref('advertisements');
+                
+                // 1. Quản lý giới hạn 10 tin
+                const snapshot = await adsRef.orderByChild('createdAt').once('value');
+                let ads = [];
+                snapshot.forEach((child) => {
+                    ads.push({ key: child.key, ...child.val() });
+                });
+
+                if (ads.length >= 10) {
+                    const oldestAd = ads[0];
+                    await db.ref('advertisements/' + oldestAd.key).remove();
+                }
+
+                // 2. Lưu trực tiếp chuỗi Base64 vào Database (Bỏ qua Storage để tránh lỗi CORS)
+                await adsRef.push({
+                    title: document.getElementById('title').value,
+                    description: document.getElementById('description').value,
+                    imageUrls: compressedBase64Images, // Giờ là mảng các chuỗi Base64
+                    createdAt: Date.now()
+                });
+
+                showToast('Đăng thành công!', 'success');
+                setTimeout(() => window.location.href = 'index.html', 1500);
+
+            } catch (error) {
+                console.error("Lỗi:", error);
+                alert("LỖI HỆ THỐNG:\n" + error.message);
+                submitBtn.classList.remove('loading');
+                submitBtn.disabled = false;
+            }
+        });
+
+        function showToast(message, type) {
+            toast.textContent = message;
+            toast.className = `toast show ${type}`;
+            setTimeout(() => toast.className = 'toast', 3000);
+        }
+    </script>
+</body>
+</html>

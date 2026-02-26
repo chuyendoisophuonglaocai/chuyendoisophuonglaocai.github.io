@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản Trị SmartAd - Lào Cai</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <style>
+        .admin-container {
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+        .login-box {
+            max-width: 400px;
+            margin: 100px auto;
+            text-align: center;
+        }
+        .admin-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        .ad-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .ad-card img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .settings-panel {
+            background: var(--glass);
+            padding: 20px;
+            border-radius: 20px;
+            margin-bottom: 30px;
+            border: 1px solid var(--primary);
+        }
+        .btn-delete { background: #ef4444; margin-top: 10px; }
+        .btn-save { background: var(--primary); color: #000; margin-top: 10px; }
+        .hidden { display: none; }
+
+        /* Custom Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            opacity: 0;
+            pointer-events: none;
+            transition: 0.3s;
+        }
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal-content {
+            background: #1e293b;
+            padding: 30px;
+            border-radius: 24px;
+            border: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
+            max-width: 350px;
+            transform: scale(0.9);
+            transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .modal-overlay.active .modal-content {
+            transform: scale(1);
+        }
+        .modal-content h3 { margin-bottom: 10px; color: #fff; }
+        .modal-content p { color: #94a3b8; font-size: 0.9rem; margin-bottom: 25px; }
+        .modal-btns { display: flex; gap: 12px; }
+        .btn-cancel { background: #334155; }
+        .btn-confirm { background: #ef4444; }
+    </style>
+</head>
+<body class="upload-mode">
+    <!-- Login Section -->
+    <div id="loginSection" class="login-box glass-container">
+        <h2>🔒 Quản Trị Hệ Thống</h2>
+        <div class="input-group">
+            <input type="text" id="adminID" placeholder="ID Quản trị">
+        </div>
+        <div class="input-group">
+            <input type="password" id="adminPass" placeholder="Mật khẩu">
+        </div>
+        <button onclick="checkLogin()">Đăng Nhập</button>
+    </div>
+
+    <!-- Management Section -->
+    <div id="adminSection" class="admin-container hidden">
+        <div class="settings-panel">
+            <h3>⚙️ Cấu Hình Chung</h3>
+            <div class="input-group">
+                <label>Thời gian chuyển quảng cáo (giây)</label>
+                <input type="number" id="rotationSpeed" min="5" max="300" placeholder="Mặc định: 30">
+                <button class="btn-save" onclick="saveSettings()">Lưu Cấu Hình</button>
+            </div>
+        </div>
+
+        <div class="header-flex" style="display: flex; justify-content: space-between; align-items: center;">
+            <h2>📋 Danh Sách Quảng Cáo</h2>
+            <button onclick="logout()" style="background: #334155; width: auto; padding: 10px 20px;">Đăng xuất</button>
+        </div>
+
+        <div id="adList" class="admin-grid">
+            <!-- Ads will be rendered here -->
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <!-- Custom Confirm Modal -->
+    <div id="confirmModal" class="modal-overlay">
+        <div class="modal-content">
+            <h3>⚠️ Xác nhận xóa</h3>
+            <p>Bạn có chắc chắn muốn xóa tin quảng cáo này không? Hành động này không thể hoàn tác.</p>
+            <div class="modal-btns">
+                <button class="btn-cancel" onclick="closeConfirmModal()">Hủy</button>
+                <button class="btn-confirm" id="confirmDeleteBtn">Xóa Ngay</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import firebaseConfig from '../js/firebase-config.js';
+        const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        window.checkLogin = () => {
+            const id = document.getElementById('adminID').value;
+            const pass = document.getElementById('adminPass').value;
+            if (id === 'ADMIN' && pass === 'tranhuyhoang') {
+                document.getElementById('loginSection').classList.add('hidden');
+                document.getElementById('adminSection').classList.remove('hidden');
+                loadAds();
+                loadSettings();
+                showToast('Chào mừng Quản trị viên!', 'success');
+            } else {
+                showToast('Sai ID hoặc Mật khẩu!', 'error');
+            }
+        };
+
+        window.logout = () => location.reload();
+
+        async function loadSettings() {
+            const snap = await db.ref('settings').once('value');
+            if (snap.exists()) {
+                document.getElementById('rotationSpeed').value = snap.val().rotationSpeed / 1000;
+            }
+        }
+
+        window.saveSettings = async () => {
+            const speed = document.getElementById('rotationSpeed').value;
+            await db.ref('settings').update({ rotationSpeed: speed * 1000 });
+            showToast('Đã lưu cấu hình!', 'success');
+        };
+
+        function loadAds() {
+            db.ref('advertisements').on('value', (snapshot) => {
+                const adList = document.getElementById('adList');
+                adList.innerHTML = '';
+                const data = snapshot.val();
+                if (data) {
+                    Object.keys(data).forEach(key => {
+                        const ad = data[key];
+                        const card = document.createElement('div');
+                        card.className = 'ad-card';
+                        card.innerHTML = `
+                            <img src="${ad.imageUrls[0]}">
+                            <div class="input-group">
+                                <label style="font-size: 0.7rem;">Tiêu đề</label>
+                                <input type="text" id="t-${key}" value="${ad.title}" placeholder="Tiêu đề">
+                            </div>
+                            <div class="input-group">
+                                <label style="font-size: 0.7rem;">Mô tả</label>
+                                <textarea id="d-${key}" rows="2">${ad.description}</textarea>
+                            </div>
+                            <div class="input-group">
+                                <label style="font-size: 0.7rem;">Thời lượng riêng (giây - để trống nếu dùng mặc định)</label>
+                                <input type="number" id="dur-${key}" value="${ad.customDuration ? ad.customDuration / 1000 : ''}" placeholder="Mặc định">
+                            </div>
+                            <button class="btn-save" onclick="updateAd('${key}')">Cập Nhật</button>
+                            <button class="btn-delete" onclick="deleteAd('${key}')">Xóa Tin</button>
+                        `;
+                        adList.appendChild(card);
+                    });
+                }
+            });
+        }
+
+        window.updateAd = async (key) => {
+            const title = document.getElementById(`t-${key}`).value;
+            const description = document.getElementById(`d-${key}`).value;
+            const customDur = document.getElementById(`dur-${key}`).value;
+            
+            const updates = { title, description };
+            if (customDur) {
+                updates.customDuration = parseInt(customDur) * 1000;
+            } else {
+                updates.customDuration = null; // Dùng mặc định
+            }
+
+            await db.ref(`advertisements/${key}`).update(updates);
+            showToast('Đã cập nhật quảng cáo!', 'success');
+        };
+
+        let adToDelete = null;
+        window.deleteAd = (key) => {
+            adToDelete = key;
+            document.getElementById('confirmModal').classList.add('active');
+        };
+
+        window.closeConfirmModal = () => {
+            document.getElementById('confirmModal').classList.remove('active');
+            adToDelete = null;
+        };
+
+        document.getElementById('confirmDeleteBtn').onclick = async () => {
+            if (adToDelete) {
+                await db.ref(`advertisements/${adToDelete}`).remove();
+                showToast('Đã xóa quảng cáo vĩnh viễn!', 'success');
+                closeConfirmModal();
+            }
+        };
+
+        function showToast(message, type) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast show ${type}`;
+            setTimeout(() => toast.className = 'toast', 3000);
+        }
+    </script>
+</body>
+</html>

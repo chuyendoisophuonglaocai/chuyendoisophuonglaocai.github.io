@@ -175,12 +175,26 @@
                 adList.innerHTML = '';
                 const data = snapshot.val();
                 if (data) {
-                    Object.keys(data).forEach(key => {
-                        const ad = data[key];
+                    const sortedAds = Object.keys(data).map(key => ({
+                        key,
+                        ...data[key]
+                    })).sort((a, b) => {
+                        const orderA = a.order || 0;
+                        const orderB = b.order || 0;
+                        if (orderA !== orderB) return orderA - orderB;
+                        return b.createdAt - a.createdAt;
+                    });
+
+                    sortedAds.forEach(ad => {
+                        const key = ad.key;
                         const card = document.createElement('div');
                         card.className = 'ad-card';
                         card.innerHTML = `
                             <img src="${ad.imageUrls[0]}">
+                            <div class="input-group">
+                                <label style="font-size: 0.7rem;">Thứ tự hiển thị (Số nhỏ đứng trước)</label>
+                                <input type="number" id="ord-${key}" value="${ad.order || 0}" placeholder="0">
+                            </div>
                             <div class="input-group">
                                 <label style="font-size: 0.7rem;">Tiêu đề</label>
                                 <input type="text" id="t-${key}" value="${ad.title}" placeholder="Tiêu đề">
@@ -206,8 +220,14 @@
             const title = document.getElementById(`t-${key}`).value;
             const description = document.getElementById(`d-${key}`).value;
             const customDur = document.getElementById(`dur-${key}`).value;
+            const order = document.getElementById(`ord-${key}`).value;
             
-            const updates = { title, description };
+            const updates = { 
+                title, 
+                description, 
+                order: parseInt(order) || 0 
+            };
+            
             if (customDur) {
                 updates.customDuration = parseInt(customDur) * 1000;
             } else {

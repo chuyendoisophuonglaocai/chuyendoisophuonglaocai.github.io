@@ -71,7 +71,12 @@
                 advertisements = Object.keys(data).map(key => ({
                     id: key,
                     ...data[key]
-                })).sort((a, b) => b.createdAt - a.createdAt);
+                })).sort((a, b) => {
+                    const orderA = a.order || 0;
+                    const orderB = b.order || 0;
+                    if (orderA !== orderB) return orderA - orderB;
+                    return b.createdAt - a.createdAt;
+                });
                 
                 if (advertisements.length > 0) {
                     renderDisplay();

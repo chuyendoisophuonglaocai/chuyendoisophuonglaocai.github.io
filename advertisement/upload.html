@@ -38,7 +38,7 @@
                     <div class="file-custom-ui">
                         <span class="icon">📸</span>
                         <span class="text">Chọn ảnh sản phẩm</span>
-                        <span class="subtext">Tối đa 3 ảnh, nén chất lượng cao (~200KB)</span>
+                        <span class="subtext">Tối đa 3 ảnh, nén chất lượng cao (~500KB)</span>
                     </div>
                 </div>
                 <div id="imagePreview" class="image-preview-grid"></div>
@@ -119,7 +119,7 @@
                         const canvas = document.createElement('canvas');
                         let width = img.width;
                         let height = img.height;
-                        const MAX_SIDE = 1200; // Tăng kích thước để ảnh sắc nét hơn
+                        const MAX_SIDE = 1600; // Tăng lên 1600 để ảnh sắc nét hơn với giới hạn 500KB
                         if (width > height) {
                             if (width > MAX_SIDE) { height *= MAX_SIDE / width; width = MAX_SIDE; }
                         } else {
@@ -130,8 +130,8 @@
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(img, 0, 0, width, height);
 
-                        // Tăng chất lượng nén lên để đạt khoảng 200KB
-                        let quality = 0.8; 
+                        // Tăng chất lượng nén lên để đạt khoảng 500KB
+                        let quality = 0.9; 
                         const dataUrl = canvas.toDataURL('image/jpeg', quality);
                         resolve(dataUrl);
                     };
@@ -171,7 +171,8 @@
                     title: document.getElementById('title').value,
                     description: document.getElementById('description').value,
                     imageUrls: compressedBase64Images, // Giờ là mảng các chuỗi Base64
-                    createdAt: Date.now()
+                    createdAt: Date.now(),
+                    order: 0
                 });
 
                 showToast('Đăng thành công!', 'success');
